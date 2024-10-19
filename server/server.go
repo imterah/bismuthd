@@ -175,9 +175,6 @@ func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 				serverState = "APITransmit"
 			}
 		} else if serverState == "APITransmit" {
-			// Currently the API is in a skeleton-like state, so the API is a bit of a no-op right now.
-			// Fuck you Stari.
-
 			packetSizeByteArr := make([]byte, 3)
 
 			if _, err := conn.Read(packetSizeByteArr); err != nil {
@@ -209,7 +206,6 @@ func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 				return err
 			}
 
-			// Fuck it, we ball
 			if packet[0] == core.InitiateForwarding {
 				bmConn := core.BismuthConn{
 					Aead:       aead,
