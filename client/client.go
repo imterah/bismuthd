@@ -41,13 +41,18 @@ func (bismuth BismuthClient) decryptMessage(aead cipher.AEAD, encMsg []byte) ([]
 	return decryptedData, nil
 }
 
+// Bismuth Client
 type BismuthClient struct {
-	PublicKey  *crypto.Key
+	// GOpenPGP public key
+	PublicKey *crypto.Key
+	// GOpenPGP private key
 	PrivateKey *crypto.Key
 
 	pgp *crypto.PGPHandle
 }
 
+// Connects to a Bismuth server. This wraps an existing net.Conn interface.
+// The returned net.Conn is the server, but over bismuth.
 func (bismuth BismuthClient) Conn(conn net.Conn) (net.Conn, error) {
 	// Yes, I'm aware defer exists. It won't work if I use it in this context. I'll shank anyone that complains
 	// Exchange our public keys first
@@ -183,6 +188,9 @@ func (bismuth BismuthClient) Conn(conn net.Conn) (net.Conn, error) {
 	}, nil
 }
 
+// Creates a new BismuthClient.
+//
+// Both `pubKey` and `privKey` are armored PGP public and private keys respectively.
 func New(pubKey string, privKey string) (*BismuthClient, error) {
 	publicKey, err := crypto.NewKeyFromArmored(pubKey)
 

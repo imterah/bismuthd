@@ -1,3 +1,5 @@
+// Shared connection handler after both the client and server handshake successfully
+
 package commons
 
 import (
@@ -9,11 +11,18 @@ import (
 	"time"
 )
 
-// Max size for a TCP packet
+// Maximum size for a TCP packet
 var ConnStandardMaxBufSize = 65535
-var CryptHeader = 43
+var cryptHeaderSize = 43
 
-// Wild
+// Connection used after both the Bismuth client and server negotiate and start
+// transmitting data.
+//
+// Note that using this has the same API as the net.Conn, but it isn't conformant to
+// the interface due to using pointers rather than copies to access the struct.
+//
+// If you need the same interface, wrap this in WrappedBismuthConn.
+// Wrapping BismuthConn is done automatically by the client and server.
 type BismuthConn struct {
 	Aead       cipher.AEAD
 	PassedConn net.Conn
@@ -26,10 +35,11 @@ type BismuthConn struct {
 	contentBufPos  int
 	contentBufSize int
 
-	MaxBufSize                      int
+	// Maximum buffer size to be used to internally buffer packets
+	MaxBufSize int
+	// If true, it enables using the content buffer maximum size
+	// instead of the TCP packet maximum size
 	AllowNonstandardPacketSizeLimit bool
-
-	net.Conn
 }
 
 func (bmConn *BismuthConn) DoInitSteps() {
@@ -68,6 +78,7 @@ func (bmConn *BismuthConn) decryptMessage(encMsg []byte) ([]byte, error) {
 	return decryptedData, nil
 }
 
+// After you update the property `bmConn.MaxBufSize`, call this function to resize the content buffer
 func (bmConn *BismuthConn) ResizeContentBuf() error {
 	if !bmConn.initDone {
 		return fmt.Errorf("bmConn not initialized")
@@ -95,6 +106,7 @@ func (bmConn *BismuthConn) ResizeContentBuf() error {
 	return nil
 }
 
+// Reads specifically from the buffer only. If nothing is in the buffer, nothing is returned.
 func (bmConn *BismuthConn) ReadFromBuffer(b []byte) (n int, err error) {
 	bmConn.lock.Lock()
 	defer bmConn.lock.Unlock()
@@ -126,6 +138,7 @@ func (bmConn *BismuthConn) ReadFromBuffer(b []byte) (n int, err error) {
 	return 0, nil
 }
 
+// Reads specifically from the network. Be careful as using only this may overflow the buffer.
 func (bmConn *BismuthConn) ReadFromNetwork(b []byte) (n int, err error) {
 	bmConn.lock.Lock()
 	defer bmConn.lock.Unlock()
@@ -146,7 +159,7 @@ func (bmConn *BismuthConn) ReadFromNetwork(b []byte) (n int, err error) {
 	//   - the max buffer size if 'AllowNonstandardPacketSizeLimit' is set
 	// We check AFTER we read to make sure that we don't corrupt any future packets, because if we don't read the packet,
 	// it will think that the actual packet will be the start of the packet, and that would cause loads of problems.
-	if !bmConn.AllowNonstandardPacketSizeLimit && encryptedContentLength > uint32(65535+CryptHeader) {
+	if !bmConn.AllowNonstandardPacketSizeLimit && encryptedContentLength > uint32(65535+cryptHeaderSize) {
 		return 0, fmt.Errorf("packet too large")
 	} else if bmConn.AllowNonstandardPacketSizeLimit && encryptedContentLength > uint32(bmConn.MaxBufSize) {
 		return 0, fmt.Errorf("packet too large")
@@ -187,6 +200,7 @@ func (bmConn *BismuthConn) ReadFromNetwork(b []byte) (n int, err error) {
 	return calcSize, nil
 }
 
+// Reads from the Bismuth connection, using both the buffered and network methods
 func (bmConn *BismuthConn) Read(b []byte) (n int, err error) {
 	if !bmConn.initDone {
 		return 0, fmt.Errorf("bmConn not initialized")
@@ -211,6 +225,7 @@ func (bmConn *BismuthConn) Read(b []byte) (n int, err error) {
 	return bufferReadSize + networkReadSize, nil
 }
 
+// Encrypts and sends off a message
 func (bmConn *BismuthConn) Write(b []byte) (n int, err error) {
 	encryptedMessage, err := bmConn.encryptMessage(b)
 
@@ -251,8 +266,10 @@ func (bmConn *BismuthConn) SetWriteDeadline(time time.Time) error {
 	return bmConn.PassedConn.SetWriteDeadline(time)
 }
 
-// TODO: remove this ugly hack if possible! There's probably a better way around this...
-
+// Wrapped BismuthConn struct. This is conformant to net.Conn, unlike above.
+// To get the raw Bismuth struct, just get the Bismuth property:
+//
+// `bmConn.Bismuth` -> `BismuthConn`
 type BismuthConnWrapped struct {
 	Bismuth *BismuthConn
 }

@@ -13,17 +13,22 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+// Bismuth Server
 type BismuthServer struct {
-	PublicKey  *crypto.Key
+	// Public key to use for transmission
+	PublicKey *crypto.Key
+	// Private key to use for transmission
 	PrivateKey *crypto.Key
 
 	pgp *crypto.PGPHandle
 
+	// Algorithm to use for encryption (currently XChaCha20Poly1305 is the only option)
 	SymmetricEncryptionAlgorithm int
-
+	// Servers that are signing this server. If none, this server becomes self-signed
+	// in the clients eyes
 	SigningServers []string
 
-	// This is what's called after a successful handshake & connection.
+	// Called after a successful handshake & connection.
 	HandleConnection func(conn net.Conn) error
 }
 
@@ -56,7 +61,7 @@ func (bismuth BismuthServer) decryptMessage(aead cipher.AEAD, encMsg []byte) ([]
 	return decryptedData, nil
 }
 
-// This is what's called to handle a connnection for Bismuth.
+// Called to handle a connnection for Bismuth. The conn argument is the client you'd like to handle
 func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 	serverState := "keyHandshake"
 
@@ -225,6 +230,9 @@ func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 	}
 }
 
+// Initializes a Bismuth server.
+//
+// Both `pubKey` and `privKey` are armored PGP public and private keys respectively.
 func NewBismuthServer(pubKey string, privKey string, signServers []string, encryptionAlgo int, connHandler func(conn net.Conn) error) (*BismuthServer, error) {
 	publicKey, err := crypto.NewKeyFromArmored(pubKey)
 
