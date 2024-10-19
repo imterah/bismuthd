@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// Give it 2x the max size for a TCP packet
-var ConnStandardMaxBufSize = (65535 * 2)
+// Max size for a TCP packet
+var ConnStandardMaxBufSize = 65535
 var CryptHeader = 43
 
 // Wild
