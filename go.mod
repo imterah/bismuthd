@@ -6,6 +6,7 @@ require (
 	github.com/ProtonMail/gopenpgp/v3 v3.0.0-beta.1-proton
 	github.com/charmbracelet/log v0.4.0
 	github.com/urfave/cli/v2 v2.27.4
+	golang.org/x/crypto v0.28.0
 	tailscale.com v1.74.1
 )
 
@@ -27,7 +28,6 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 )
