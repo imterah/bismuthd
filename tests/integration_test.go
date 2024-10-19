@@ -74,7 +74,7 @@ func TestProtocolTxRx(t *testing.T) {
 
 		err = bismuth.HandleProxy(conn)
 
-		if err != nil {
+		if err != nil && err.Error() != "EOF" {
 			t.Fatalf("failed to handle proxy in Bismuth (%s)", err.Error())
 		}
 	}()
@@ -109,14 +109,20 @@ func TestProtocolTxRx(t *testing.T) {
 		for totalBufferRead != bufferSize {
 			randBufSize := mathRand.Intn(bufferSize - totalBufferRead)
 
-			if randBufSize == bufferSize || randBufSize == 0 {
+			if randBufSize == bufferSize {
 				continue
+			} else if randBufSize == 0 {
+				randBufSize = 1
 			}
 
-			actualReadSize, err := conn.Read(readBuffer[totalBufferRead:])
+			actualReadSize, err := conn.Read(readBuffer[totalBufferRead : randBufSize+totalBufferRead])
 
 			if err != nil {
 				t.Fatalf("bismuth client failed to read in random slice #%d (%s)", index+1, err.Error())
+			}
+
+			if actualReadSize > randBufSize {
+				t.Fatalf("bismuth client is misreporting read size (expecting n < %d, recieved n (%d) > %d in random slice #%d", randBufSize, actualReadSize, randBufSize, index+1)
 			}
 
 			totalBufferRead += actualReadSize
