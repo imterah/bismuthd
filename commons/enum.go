@@ -2,32 +2,44 @@
 
 package commons
 
-// Commands
+// Core Protocol Commands
 const (
-	// SendPublicKey: Sending public key back and forth
+	// Sending public key back and forth
 	SendPublicKey = iota
-	// SwitchToSymmetricKey: Sent by the client along with the symmetric key that is going to be used
+	// Sent by the client along with the symmetric key that is going to be used
 	SwitchToSymmetricKey
-	// ClientSendHost: Currently unimplemented.
 	// Client sends what host they are connecting to.
+	// Currently unimplemented.
 	ClientSendHost
-	// GetSigningServers: Currently unimplemented.
 	// Gets the signing servers trusting/signing the current server.
+	// Currently unimplemented.
 	GetSigningServers
-	// GetTrustedDomains: Currently unimplemented.
 	// Gets the domains that are supported by this certificate (should be cross-checked)
+	// Currently unimplemented.
 	GetTrustedDomains
-	// InitiateForwarding: Starts forwarding traffic over this protocol.
+	// Starts forwarding traffic over this protocol.
 	InitiateForwarding
 )
 
-// Encryption algorithms
+// Validation API Commands
+const (
+	// Checks if the domains are valid for a specified key
+	AreDomainsValidForKey = iota
+	// Validate a server and keys
+	ValidateKey
+	// Status codes
+	Success
+	Failure
+	InternalError
+)
+
+// Encryption Algorithms
 const (
 	// Default and only encryption algorithm
 	XChaCha20Poly1305 = iota
 )
 
-// Unsigned integer limits
+// Unsigned Integer Limits
 const (
 	BitLimit24 = 16_777_215
 	BitLimit16 = 65535
