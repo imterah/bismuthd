@@ -9,13 +9,10 @@ const (
 	// Sent by the client along with the symmetric key that is going to be used
 	SwitchToSymmetricKey
 	// Client sends what host they are connecting to.
-	// Currently unimplemented.
 	ClientSendHost
 	// Gets the signing servers trusting/signing the current server.
-	// Currently unimplemented.
 	GetSigningServers
 	// Gets the domains that are supported by this certificate (should be cross-checked)
-	// Currently unimplemented.
 	GetTrustedDomains
 	// Starts forwarding traffic over this protocol.
 	InitiateForwarding

@@ -162,7 +162,54 @@ func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 				return err
 			}
 
-			if packet[0] == core.InitiateForwarding {
+			switch packet[0] {
+			case core.GetSigningServers:
+				totalPacketContents := make([]byte, 1)
+				totalPacketContents[0] = core.GetSigningServers
+
+				for index, signServer := range bismuth.SigningServers {
+					totalPacketContents = append(totalPacketContents, []byte(signServer)...)
+
+					if index+1 != len(bismuth.SigningServers) {
+						totalPacketContents = append(totalPacketContents, '\n')
+					}
+				}
+
+				encryptedPacket, err := bismuth.encryptMessage(aead, totalPacketContents)
+
+				if err != nil {
+					return err
+				}
+
+				encryptedPacketLength := make([]byte, 3)
+				core.Int32ToInt24(encryptedPacketLength, uint32(len(encryptedPacket)))
+
+				conn.Write(encryptedPacketLength)
+				conn.Write(encryptedPacket)
+			case core.GetTrustedDomains:
+				totalPacketContents := make([]byte, 1)
+				totalPacketContents[0] = core.GetTrustedDomains
+
+				for index, trustedDomain := range bismuth.TrustedDomains {
+					totalPacketContents = append(totalPacketContents, []byte(trustedDomain)...)
+
+					if index+1 != len(bismuth.TrustedDomains) {
+						totalPacketContents = append(totalPacketContents, '\n')
+					}
+				}
+
+				encryptedPacket, err := bismuth.encryptMessage(aead, totalPacketContents)
+
+				if err != nil {
+					return err
+				}
+
+				encryptedPacketLength := make([]byte, 3)
+				core.Int32ToInt24(encryptedPacketLength, uint32(len(encryptedPacket)))
+
+				conn.Write(encryptedPacketLength)
+				conn.Write(encryptedPacket)
+			case core.InitiateForwarding:
 				bmConn := core.BismuthConn{
 					Aead:       aead,
 					PassedConn: conn,
@@ -171,9 +218,13 @@ func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 
 				bmConn.DoInitSteps()
 
+				metadata := ClientMetadata{
+					ClientPublicKey: clientPublicKey,
+				}
+
 				err := bismuth.HandleConnection(core.BismuthConnWrapped{
 					Bismuth: &bmConn,
-				})
+				}, &metadata)
 
 				return err
 			}

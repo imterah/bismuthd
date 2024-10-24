@@ -1,4 +1,4 @@
-# Bismuth Protocol
+# Bismuth Protocol [![Go Reference](https://pkg.go.dev/badge/git.greysoh.dev/imterah/bismuthd.svg)](https://pkg.go.dev/git.greysoh.dev/imterah/bismuthd)
 
 The Bismuth protocol is a thin wrapper for any protocol that adds TLS-like features, without being TLS on its own.
 

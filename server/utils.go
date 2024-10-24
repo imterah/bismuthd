@@ -4,7 +4,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"fmt"
-	"net"
 
 	"github.com/ProtonMail/gopenpgp/v3/crypto"
 )
@@ -41,7 +40,7 @@ func (bismuth BismuthServer) decryptMessage(aead cipher.AEAD, encMsg []byte) ([]
 // Initializes a Bismuth server.
 //
 // Both `pubKey` and `privKey` are armored PGP public and private keys respectively.
-func NewBismuthServer(pubKey string, privKey string, signServers []string, encryptionAlgo int, connHandler func(conn net.Conn) error) (*BismuthServer, error) {
+func NewBismuthServer(pubKey string, privKey string, signServers []string, encryptionAlgo int) (*BismuthServer, error) {
 	publicKey, err := crypto.NewKeyFromArmored(pubKey)
 
 	if err != nil {
@@ -59,7 +58,6 @@ func NewBismuthServer(pubKey string, privKey string, signServers []string, encry
 	bismuth := BismuthServer{
 		PublicKey:                    publicKey,
 		PrivateKey:                   privateKey,
-		HandleConnection:             connHandler,
 		SigningServers:               signServers,
 		SymmetricEncryptionAlgorithm: encryptionAlgo,
 		pgp:                          pgp,

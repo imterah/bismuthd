@@ -19,6 +19,7 @@ var testProtocolTxRxBufCount = 32
 // Tests protocol transmitting and receiving
 // This is designed to be a nightmare scenario for the protocol to push the limits on what would be possible.
 func TestProtocolTxRx(t *testing.T) {
+	t.Log("running tests")
 	pubKeyCli, privKeyCli, err := CreateKeyring("alice", "alice@contoso.com")
 
 	if err != nil {
@@ -52,7 +53,9 @@ func TestProtocolTxRx(t *testing.T) {
 		t.Fatalf("failed to listen on TCP for localhost (%s)", err.Error())
 	}
 
-	bismuth, err := server.NewBismuthServer(pubKeyServ, privKeyServ, []string{}, commons.XChaCha20Poly1305, func(conn net.Conn) error {
+	bismuth, err := server.NewBismuthServer(pubKeyServ, privKeyServ, []string{}, commons.XChaCha20Poly1305)
+
+	bismuth.HandleConnection = func(conn net.Conn, _ *server.ClientMetadata) error {
 		for entryCount, randomDataSlice := range randomDataSlices {
 			_, err = conn.Write(randomDataSlice)
 
@@ -62,7 +65,7 @@ func TestProtocolTxRx(t *testing.T) {
 		}
 
 		return nil
-	})
+	}
 
 	// TODO: fix these warnings?
 	go func() {
@@ -92,7 +95,7 @@ func TestProtocolTxRx(t *testing.T) {
 		t.Fatalf("failed to connect to bismuth server (%s)", err.Error())
 	}
 
-	conn, err := bismuthClient.Conn(originalConn)
+	conn, _, err := bismuthClient.Conn(originalConn)
 
 	if err != nil {
 		t.Fatalf("bismuth client failed to handshake when connecting to server (%s)", err.Error())
