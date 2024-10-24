@@ -391,7 +391,7 @@ func signCert(cCtx *cli.Context) error {
 	}
 
 	isTrusted, err := signingclient.IsDomainTrusted(conn, keyFingerprint, domainList)
-	fmt.Printf("is certificate trusted: %t\n", isTrusted)
+	fmt.Printf("Certificate trust status: %t\n", isTrusted)
 
 	if !isTrusted {
 		os.Exit(1)

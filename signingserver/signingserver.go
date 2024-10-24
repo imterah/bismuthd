@@ -84,25 +84,18 @@ func (signServer *BismuthSigningServer) connHandler(conn net.Conn, metadata *ser
 			// This is probably a bit too big, but I'd like to air on the side of caution here...
 			keyFingerprintLength := make([]byte, 2)
 
-			fmt.Println("keyFingerLen")
-
 			if _, err := conn.Read(keyFingerprintLength); err != nil {
 				return err
 			}
 
 			keyFingerprintBytes := make([]byte, binary.BigEndian.Uint16(keyFingerprintLength))
 
-			fmt.Println("keyFingerBytes")
-
 			if _, err := conn.Read(keyFingerprintBytes); err != nil {
 				return err
 			}
 
 			keyFingerprint := hex.EncodeToString(keyFingerprintBytes)
-
 			serverDomainListLength := make([]byte, 2)
-
-			fmt.Println("serverDomainListLen")
 
 			if _, err := conn.Read(serverDomainListLength); err != nil {
 				return err
@@ -110,14 +103,9 @@ func (signServer *BismuthSigningServer) connHandler(conn net.Conn, metadata *ser
 
 			serverDomainListBytes := make([]byte, binary.BigEndian.Uint16(serverDomainListLength))
 
-			fmt.Println("serverDomainList")
-			fmt.Printf("len: %d\n", binary.BigEndian.Uint16(serverDomainListLength))
-
 			if _, err := conn.Read(serverDomainListBytes); err != nil {
 				return err
 			}
-
-			fmt.Println("done")
 
 			serverDomainList := strings.Split(string(serverDomainListBytes), "\n")
 
