@@ -331,12 +331,11 @@ func (bismuth *BismuthClient) Conn(conn net.Conn) (net.Conn, *BismuthSignResults
 
 			if err == nil {
 				rootNode.ChildNodes = domainTrustResults
+				totalServerCount, passedServerCount = computeNodes(rootNode.ChildNodes)
 			} else {
 				fmt.Printf("ERROR: failed to verify servers (%s).\n", err.Error())
 				signResults.OverallTrustScore = 0
 			}
-
-			totalServerCount, passedServerCount = computeNodes(rootNode.ChildNodes)
 		} else if isCertSigned {
 			rootNode.IsTrusting = isCertSigned
 
