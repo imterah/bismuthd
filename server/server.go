@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net"
 
 	core "git.greysoh.dev/imterah/bismuthd/commons"
@@ -192,7 +191,6 @@ func (bismuth BismuthServer) HandleProxy(conn net.Conn) error {
 				totalPacketContents[0] = core.GetTrustedDomains
 
 				for index, trustedDomain := range bismuth.TrustedDomains {
-					fmt.Println("building trusted domains")
 					totalPacketContents = append(totalPacketContents, []byte(trustedDomain)...)
 
 					if index+1 != len(bismuth.TrustedDomains) {
