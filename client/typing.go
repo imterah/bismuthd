@@ -27,13 +27,12 @@ type BismuthClient struct {
 	//   - `certificateFingerprint`: A fingerprint of the servers key.
 	//   - `isSelfSigned`: If true, the certificate is either actually self-signed, or
 	//     verification is dsabled (CheckIfCertificatesAreSigned in BismuthClient is false)
-	//   - `isTrustworthy`: If true, the certificate is signed by 51% or more of peers.
 	//
 	// This function will only be called if client.CheckIfCertificatesAreSigned is true.
 	//
 	// Example usage inside the Bismuth client source:
 	//     client.CertificateSignChecker("example.com:9090", "6c5eaff6f5c65e65e6f6ce6fc", false, true)
-	CertificateSignChecker func(host, certificateFingerprint string, isSelfSigned, isTrustworthy bool) bool
+	CertificateSignChecker func(host, certificateFingerprint string, isSelfSigned bool) bool
 
 	// If any certificates are false in the certificate cache, and the client has determined that
 	// they may need to be added, this function will get called.
@@ -49,7 +48,8 @@ type BismuthClient struct {
 	// Connects to a server.
 	// This function will only be called if client.CheckIfCertificatesAreSigned is true.
 	//
-	// client.ConnectToServer("google.com:80")
+	// Example usage in the client source:
+	//     client.ConnectToServer("google.com:80")
 	ConnectToServer func(address string) (net.Conn, error)
 
 	// GopenPGP instance
@@ -62,9 +62,7 @@ type BismuthSignResultData struct {
 	ChildNodes []*BismuthSignResultData
 
 	// If true, the server is already trusting this node
-	IsTrustingAlready bool
-	// If true, server is trusting the previous server
-	IsTrustingRootServer bool
+	IsTrusting bool
 }
 
 type BismuthSignResults struct {
@@ -79,13 +77,17 @@ type BismuthSignResults struct {
 
 type BismuthCertificates struct {
 	// The host of the server
-	host string
+	Host string
 	// A fingerprint of the servers key
-	certificateFingerprint string
+	CertificateFingerprint string
 	// Certificate UserID
-	certificateUsername string
-	certificateMail     string
+	CertificateUsername string
+	CertificateMail     string
 
 	// If true, the certificate is self signed
-	isSelfSigned bool
+	IsSelfSigned bool
+
+	// If true, the client should not prompt the user, and automatically
+	// add the certificate instead.
+	ShouldAutomaticallyAdd bool
 }

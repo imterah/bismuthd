@@ -53,7 +53,7 @@ func TestProtocolTxRx(t *testing.T) {
 		t.Fatalf("failed to listen on TCP for localhost (%s)", err.Error())
 	}
 
-	bismuth, err := server.NewBismuthServer(pubKeyServ, privKeyServ, []string{}, commons.XChaCha20Poly1305)
+	bismuth, err := server.New(pubKeyServ, privKeyServ, []string{}, []string{}, commons.XChaCha20Poly1305)
 
 	bismuth.HandleConnection = func(conn net.Conn, _ *server.ClientMetadata) error {
 		for entryCount, randomDataSlice := range randomDataSlices {
@@ -88,6 +88,8 @@ func TestProtocolTxRx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to initialize bismuthClient (%s)", err.Error())
 	}
+
+	bismuthClient.CheckIfCertificatesAreSigned = false
 
 	originalConn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(port))
 

@@ -6,10 +6,33 @@ import (
 	"strings"
 
 	core "git.greysoh.dev/imterah/bismuthd/commons"
+	"git.greysoh.dev/imterah/bismuthd/signingclient"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/ProtonMail/gopenpgp/v3/crypto"
 )
+
+func computeNodes(children []*BismuthSignResultData) (int, int) {
+	totalServerCount := 0
+	passedServerCount := 0
+
+	for _, child := range children {
+		totalServerCount += 1
+
+		if child.IsTrusting {
+			passedServerCount += 1
+		}
+
+		if len(child.ChildNodes) != 0 {
+			recievedTotalCount, recievedPassedCount := computeNodes(child.ChildNodes)
+
+			totalServerCount += recievedTotalCount
+			passedServerCount += recievedPassedCount
+		}
+	}
+
+	return totalServerCount, passedServerCount
+}
 
 // Initializes the client. Should be done automatically if you call New()
 //
@@ -20,7 +43,7 @@ func (bismuth *BismuthClient) InitializeClient() error {
 	}
 
 	if bismuth.CertificateSignChecker == nil {
-		bismuth.CertificateSignChecker = func(host, certificateFingerprint string, isSelfSigned, isTrustworthy bool) bool {
+		bismuth.CertificateSignChecker = func(host, certificateFingerprint string, isSelfSigned bool) bool {
 			fmt.Println("WARNING: Using stub CertificateSignChecker. Returing true and ignoring arguments")
 			return true
 		}
@@ -40,7 +63,44 @@ func (bismuth *BismuthClient) InitializeClient() error {
 		}
 	}
 
+	bismuth.CheckIfCertificatesAreSigned = true
+
 	return nil
+}
+
+func (bismuth *BismuthClient) checkIfDomainIsTrusted(servers, advertisedDomains []string) ([]*BismuthSignResultData, error) {
+	signResultData := make([]*BismuthSignResultData, len(servers))
+
+	for index, server := range servers {
+		baseConn, err := bismuth.ConnectToServer(server)
+
+		if err != nil {
+			return signResultData, err
+		}
+
+		defer baseConn.Close()
+
+		conn, signResultsForConn, err := bismuth.Conn(baseConn)
+
+		if err != nil {
+			return signResultData, err
+		}
+
+		isTrusted, err := signingclient.IsDomainTrusted(conn, signResultsForConn.ServerPublicKey.GetFingerprintBytes(), advertisedDomains)
+
+		if signResultsForConn.OverallTrustScore < 50 {
+			isTrusted = false
+		}
+
+		signResultData[index] = &BismuthSignResultData{
+			IsTrusting: isTrusted,
+			ChildNodes: []*BismuthSignResultData{
+				signResultsForConn.Node,
+			},
+		}
+	}
+
+	return signResultData, nil
 }
 
 // Connects to a Bismuth server. This wraps an existing net.Conn interface.
@@ -158,6 +218,139 @@ func (bismuth *BismuthClient) Conn(conn net.Conn) (net.Conn, *BismuthSignResults
 	symmKey := symmKeyInfo[1 : chacha20poly1305.KeySize+1]
 	aead, err := chacha20poly1305.NewX(symmKey)
 
+	// Request trusted domains
+
+	trustedDomainsRequest := make([]byte, 1)
+	trustedDomainsRequest[0] = core.GetTrustedDomains
+
+	encryptedTrustedDomainRequest, err := bismuth.encryptMessage(aead, trustedDomainsRequest)
+
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	trustedDomainLength := make([]byte, 3)
+	core.Int32ToInt24(trustedDomainLength, uint32(len(encryptedTrustedDomainRequest)))
+
+	conn.Write(trustedDomainLength)
+	conn.Write(encryptedTrustedDomainRequest)
+
+	if _, err = conn.Read(trustedDomainLength); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	encryptedTrustedDomainResponse := make([]byte, core.Int24ToInt32(trustedDomainLength))
+
+	if _, err = conn.Read(encryptedTrustedDomainResponse); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	trustedDomainResponse, err := bismuth.decryptMessage(aead, encryptedTrustedDomainResponse)
+
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	if trustedDomainResponse[0] != core.GetTrustedDomains {
+		conn.Close()
+		return nil, nil, fmt.Errorf("server failed to return its signing servers")
+	}
+
+	trustedDomains := strings.Split(string(trustedDomainResponse[1:]), "\n")
+
+	// Request signing servers
+
+	signingServerRequest := make([]byte, 1)
+	signingServerRequest[0] = core.GetSigningServers
+
+	encryptedSigningServerRequest, err := bismuth.encryptMessage(aead, signingServerRequest)
+
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	signingRequestLength := make([]byte, 3)
+	core.Int32ToInt24(signingRequestLength, uint32(len(encryptedSigningServerRequest)))
+
+	conn.Write(signingRequestLength)
+	conn.Write(encryptedSigningServerRequest)
+
+	if _, err = conn.Read(signingRequestLength); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	encryptedSigningRequestResponse := make([]byte, core.Int24ToInt32(signingRequestLength))
+
+	if _, err = conn.Read(encryptedSigningRequestResponse); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	signingServerResponse, err := bismuth.decryptMessage(aead, encryptedSigningRequestResponse)
+
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	if signingServerResponse[0] != core.GetSigningServers {
+		conn.Close()
+		return nil, nil, fmt.Errorf("server failed to return its signing servers")
+	}
+
+	// Check if the server is signed
+
+	signingServers := strings.Split(string(signingServerResponse[1:]), "\n")
+	isServerSelfSigned := len(signingServers)-1 == 0 || len(trustedDomains)-1 == 0
+
+	rootNode := &BismuthSignResultData{
+		ChildNodes: []*BismuthSignResultData{},
+		IsTrusting: false,
+	}
+
+	signResults := BismuthSignResults{
+		OverallTrustScore: 0,
+		ServerPublicKey:   serverPublicKey,
+		Node:              rootNode,
+	}
+
+	totalServerCount, passedServerCount := 0, 0
+
+	if bismuth.CheckIfCertificatesAreSigned {
+		serverKeyFingerprint := serverPublicKey.GetFingerprint()
+		isCertSigned := bismuth.CertificateSignChecker(host, serverKeyFingerprint, isServerSelfSigned)
+
+		if !isServerSelfSigned || !isCertSigned {
+			domainTrustResults, err := bismuth.checkIfDomainIsTrusted(signingServers, trustedDomains)
+
+			if err == nil {
+				rootNode.ChildNodes = domainTrustResults
+			} else {
+				fmt.Printf("ERROR: failed to verify servers (%s).\n", err.Error())
+				signResults.OverallTrustScore = 0
+			}
+
+			totalServerCount, passedServerCount = computeNodes(rootNode.ChildNodes)
+		} else if isCertSigned {
+			rootNode.IsTrusting = isCertSigned
+
+			totalServerCount, passedServerCount = 1, 1
+			rootNode.IsTrusting = true
+		}
+	} else {
+		totalServerCount, passedServerCount = 1, 1
+	}
+
+	if totalServerCount != 0 {
+		signResults.OverallTrustScore = int((float32(passedServerCount) / float32(totalServerCount)) * 100)
+	}
+
 	// After that, we send what host we are connecting to (enables fronting/proxy services)
 
 	hostInformation := make([]byte, 1+len(host))
@@ -178,62 +371,6 @@ func (bismuth *BismuthClient) Conn(conn net.Conn) (net.Conn, *BismuthSignResults
 
 	conn.Write(hostInformationSize)
 	conn.Write(encryptedHostInformationPacket)
-
-	// Request trusted proxies
-
-	trustedProxyRequest := make([]byte, 1)
-	trustedProxyRequest[0] = core.GetSigningServers
-
-	encryptedTrustedProxyRequest, err := bismuth.encryptMessage(aead, trustedProxyRequest)
-
-	if err != nil {
-		conn.Close()
-		return nil, nil, err
-	}
-
-	trustedProxyLength := make([]byte, 3)
-	core.Int32ToInt24(trustedProxyLength, uint32(len(encryptedTrustedProxyRequest)))
-
-	conn.Write(trustedProxyLength)
-	conn.Write(encryptedTrustedProxyRequest)
-
-	if _, err = conn.Read(trustedProxyLength); err != nil {
-		conn.Close()
-		return nil, nil, err
-	}
-
-	encryptedTrustedProxyResponse := make([]byte, core.Int24ToInt32(trustedProxyLength))
-
-	if _, err = conn.Read(encryptedTrustedProxyResponse); err != nil {
-		conn.Close()
-		return nil, nil, err
-	}
-
-	trustedProxyResponse, err := bismuth.decryptMessage(aead, encryptedTrustedProxyResponse)
-
-	if err != nil {
-		conn.Close()
-		return nil, nil, err
-	}
-
-	if trustedProxyResponse[0] != core.GetSigningServers {
-		conn.Close()
-		return nil, nil, fmt.Errorf("server failed to return its signing servers")
-	}
-
-	signingServers := strings.Split(string(trustedProxyResponse[1:]), "\n")
-	isServerSelfSigned := len(trustedProxyResponse)-1 == 0
-
-	if !isServerSelfSigned {
-		fmt.Printf("acquired signing servers: '%s'\n", strings.Join(signingServers, ", "))
-	} else {
-		fmt.Println("server is self signed, not printing (non-existent) signing servers")
-	}
-
-	signResults := BismuthSignResults{
-		OverallTrustScore: 100,
-		ServerPublicKey:   serverPublicKey,
-	}
 
 	// Start proxying
 

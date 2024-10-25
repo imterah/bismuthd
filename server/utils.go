@@ -40,7 +40,7 @@ func (bismuth BismuthServer) decryptMessage(aead cipher.AEAD, encMsg []byte) ([]
 // Initializes a Bismuth server.
 //
 // Both `pubKey` and `privKey` are armored PGP public and private keys respectively.
-func NewBismuthServer(pubKey string, privKey string, signServers []string, encryptionAlgo int) (*BismuthServer, error) {
+func New(pubKey string, privKey string, signServers []string, trustedDomains []string, encryptionAlgo int) (*BismuthServer, error) {
 	publicKey, err := crypto.NewKeyFromArmored(pubKey)
 
 	if err != nil {
@@ -59,6 +59,7 @@ func NewBismuthServer(pubKey string, privKey string, signServers []string, encry
 		PublicKey:                    publicKey,
 		PrivateKey:                   privateKey,
 		SigningServers:               signServers,
+		TrustedDomains:               trustedDomains,
 		SymmetricEncryptionAlgorithm: encryptionAlgo,
 		pgp:                          pgp,
 	}

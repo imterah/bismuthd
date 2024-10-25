@@ -118,7 +118,16 @@ func clientEntrypoint(cCtx *cli.Context) error {
 }
 
 func serverEntrypoint(cCtx *cli.Context) error {
-	signingServers := []string{}
+	var domainList []string
+	var signServers []string
+
+	if cCtx.String("domain-names") != "" {
+		domainList = strings.Split(cCtx.String("domain-names"), ":")
+	}
+
+	if cCtx.String("signing-servers") != "" {
+		signServers = strings.Split(cCtx.String("signing-servers"), ";")
+	}
 
 	pubKeyFile, err := os.ReadFile(cCtx.String("pubkey"))
 
@@ -137,7 +146,7 @@ func serverEntrypoint(cCtx *cli.Context) error {
 
 	network := fmt.Sprintf("%s:%s", cCtx.String("source-ip"), cCtx.String("source-port"))
 
-	bismuth, err := server.NewBismuthServer(pubKey, privKey, signingServers, core.XChaCha20Poly1305)
+	bismuth, err := server.New(pubKey, privKey, signServers, domainList, core.XChaCha20Poly1305)
 	bismuth.HandleConnection = func(connBismuth net.Conn, _ *server.ClientMetadata) error {
 		connDialed, err := net.Dial("tcp", network)
 
@@ -231,7 +240,16 @@ func signingServerEntrypoint(cCtx *cli.Context) error {
 	log.Warn("Using the built-in bismuth signing server in production is a horrible idea as it has no validation!")
 	log.Warn("Consider writing using a custom solution that's based on the signing server code, rather than the default implementation.")
 
-	signServers := []string{}
+	var domainList []string
+	var signServers []string
+
+	if cCtx.String("domain-names") != "" {
+		domainList = strings.Split(cCtx.String("domain-names"), ":")
+	}
+
+	if cCtx.String("signing-servers") != "" {
+		signServers = strings.Split(cCtx.String("signing-servers"), ";")
+	}
 
 	pubKeyFile, err := os.ReadFile(cCtx.String("pubkey"))
 
@@ -254,7 +272,7 @@ func signingServerEntrypoint(cCtx *cli.Context) error {
 		return err
 	}
 
-	bismuthServer, err := server.NewBismuthServer(pubKey, privKey, signServers, core.XChaCha20Poly1305)
+	bismuthServer, err := server.New(pubKey, privKey, signServers, domainList, core.XChaCha20Poly1305)
 
 	if err != nil {
 		return nil
@@ -328,7 +346,7 @@ func verifyCert(cCtx *cli.Context) error {
 	}
 
 	if certResults.OverallTrustScore < 50 {
-		return fmt.Errorf("overall trust score is below 50% for certificate")
+		return fmt.Errorf("overall trust score is below 50 percent for certificate")
 	}
 
 	fmt.Println("Sending signing request to sign server...")
@@ -387,7 +405,7 @@ func signCert(cCtx *cli.Context) error {
 	}
 
 	if certResults.OverallTrustScore < 50 {
-		return fmt.Errorf("overall trust score is below 50% for certificate")
+		return fmt.Errorf("overall trust score is below 50 percent for certificate")
 	}
 
 	isTrusted, err := signingclient.IsDomainTrusted(conn, keyFingerprint, domainList)
@@ -492,7 +510,7 @@ func main() {
 					},
 					&cli.StringFlag{
 						Name:  "signing-servers",
-						Usage: "servers trusting/\"signing\" the public key. seperated using colons",
+						Usage: "servers trusting/\"signing\" the public key. seperated using semicolons",
 					},
 					&cli.StringFlag{
 						Name:  "domain-names",
@@ -537,11 +555,11 @@ func main() {
 						Value: "9090",
 					},
 					&cli.StringFlag{
-						Name:  "domain-names",
-						Usage: "domain names the key is authorized to use. seperated using colons",
+						Name:  "signing-servers",
+						Usage: "servers trusting/\"signing\" the public key. seperated using semicolons",
 					},
 					&cli.StringFlag{
-						Name:  "signing-server",
+						Name:  "domain-names",
 						Usage: "domain names the key is authorized to use. seperated using colons",
 					},
 				},
